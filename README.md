@@ -115,9 +115,3 @@ Follow these instructions to get the project up and running on your local machin
 | Variable | Description | Where to obtain | Default/Fallback |
 |----------|-------------|----------------|------------------|
 | `NEXT_PUBLIC_GIPHY_API_KEY` | Giphy API key for GIF picker | Giphy Developers Portal → Your App | Has fallback key |
-
-### Unused Variables
-
-The following variables are present in some configurations but are not currently used by the application:
-
-- `TWITTER_BEARER_TOKEN` - Twitter Bearer Token (not used in current implementation)

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Upload, Bot, Send, Loader2, Trash2, Edit, Save, X, FileText, FileImage, Settings } from 'lucide-react';
+import SystemPromptManager from './SystemPromptManager';
 
 interface SystemPrompt {
   id: number;
@@ -22,18 +23,13 @@ export default function AddContext({ onSchedulerRefresh }: AddContextProps) {
   const [file, setFile] = useState<File | null>(null);
   const [contextType, setContextType] = useState<ContextType>('transcription');
   const [systemPrompt, setSystemPrompt] = useState<string>('');
-  const [systemPrompts, setSystemPrompts] = useState<SystemPrompt[]>([]);
   const [selectedPromptId, setSelectedPromptId] = useState<number | null>(null);
-  const [showPromptManagement, setShowPromptManagement] = useState(false);
-  const [newPromptName, setNewPromptName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [generatedTweets, setGeneratedTweets] = useState<string[]>([]);
   const [error, setError] = useState<string>('');
   const [success, setSuccess] = useState<string>('');
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editingText, setEditingText] = useState('');
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-  const [originalPrompt, setOriginalPrompt] = useState('');
 
   // Ref to preserve scroll position during updates
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -47,35 +43,11 @@ Return the tweets as a JSON array of strings. For example: ["This is a tweet.", 
 Do not include any other text or explanation in your response, only the JSON array.`;
 
   useEffect(() => {
-    fetchSystemPrompts();
-  }, []);
-
-  useEffect(() => {
     // Set default system prompt if none is selected
-    if (systemPrompts.length > 0 && !selectedPromptId) {
-      const defaultPrompt = systemPrompts.find(p => p.isDefault);
-      if (defaultPrompt) {
-        setSelectedPromptId(defaultPrompt.id);
-        setSystemPrompt(defaultPrompt.prompt);
-        setOriginalPrompt(defaultPrompt.prompt);
-      } else {
-        setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
-        setOriginalPrompt(DEFAULT_SYSTEM_PROMPT);
-      }
+    if (!systemPrompt) {
+      setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
     }
-  }, [systemPrompts, selectedPromptId]);
-
-  const fetchSystemPrompts = async () => {
-    try {
-      const response = await fetch('/api/system-prompts');
-      if (response.ok) {
-        const prompts = await response.json();
-        setSystemPrompts(prompts);
-      }
-    } catch (error) {
-      console.error('Error fetching system prompts:', error);
-    }
-  };
+  }, [systemPrompt]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -88,48 +60,13 @@ Do not include any other text or explanation in your response, only the JSON arr
     setFile(null); // Reset file when changing context type
   };
 
-  const handlePromptChange = (promptId: number) => {
-    const prompt = systemPrompts.find(p => p.id === promptId);
-    if (prompt) {
-      setSelectedPromptId(promptId);
-      setSystemPrompt(prompt.prompt);
-      setOriginalPrompt(prompt.prompt);
-      setHasUnsavedChanges(false);
-    }
+  const handlePromptSelect = (prompt: SystemPrompt) => {
+    setSelectedPromptId(prompt.id);
+    setSystemPrompt(prompt.prompt);
   };
 
-  const handleSavePrompt = async () => {
-    if (!newPromptName.trim() || !systemPrompt.trim()) {
-      setError('Please provide both name and prompt content.');
-      return;
-    }
-
-    try {
-      const response = await fetch('/api/system-prompts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: newPromptName,
-          prompt: systemPrompt,
-          isDefault: systemPrompts.length === 0, // Set as default if it's the first one
-        }),
-      });
-
-      if (response.ok) {
-        const newPrompt = await response.json();
-        setSystemPrompts([newPrompt, ...systemPrompts]);
-        setSelectedPromptId(newPrompt.id);
-        setNewPromptName('');
-        setHasUnsavedChanges(false);
-        setOriginalPrompt(systemPrompt);
-        setError('');
-        setSuccess('System prompt saved successfully!');
-      } else {
-        throw new Error('Failed to save system prompt');
-      }
-    } catch (error) {
-      setError('Failed to save system prompt. Please try again.');
-    }
+  const handlePromptChange = (prompt: string) => {
+    setSystemPrompt(prompt);
   };
 
   const handleGenerateTweets = async () => {
@@ -353,71 +290,13 @@ Do not include any other text or explanation in your response, only the JSON arr
 
         {/* System Prompt Section */}
         <div className="mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <label className="block text-sm font-medium text-gray-700">
-              System Prompt
-            </label>
-          </div>
-          
-          {systemPrompts.length > 0 && (
-            <div className="mb-2">
-              <select
-                value={selectedPromptId || ''}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === 'clear') {
-                    setSelectedPromptId(null);
-                    setSystemPrompt('');
-                    setOriginalPrompt('');
-                    setHasUnsavedChanges(false);
-                  } else {
-                    handlePromptChange(parseInt(value));
-                  }
-                }}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="">Select a saved prompt...</option>
-                <option value="clear">Clear prompt</option>
-                {systemPrompts.map((prompt) => (
-                  <option key={prompt.id} value={prompt.id}>
-                    {prompt.name} {prompt.isDefault ? '(Default)' : ''}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <textarea
-            value={systemPrompt}
-            onChange={(e) => {
-              setSystemPrompt(e.target.value);
-              setHasUnsavedChanges(e.target.value !== originalPrompt);
-            }}
-            placeholder="Enter your system prompt here..."
-            className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
-            rows={4}
+          <SystemPromptManager
+            selectedPromptId={selectedPromptId}
+            onPromptSelect={handlePromptSelect}
+            onPromptChange={handlePromptChange}
+            currentPrompt={systemPrompt}
+            isEmbedded={true}
           />
-
-          {hasUnsavedChanges && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-              <h4 className="text-sm font-medium text-gray-700 mb-2">Save Current Prompt</h4>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newPromptName}
-                  onChange={(e) => setNewPromptName(e.target.value)}
-                  placeholder="Prompt name..."
-                  className="flex-1 p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
-                <button
-                  onClick={handleSavePrompt}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Generate Button */}

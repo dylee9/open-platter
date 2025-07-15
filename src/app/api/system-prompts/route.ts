@@ -1,7 +1,7 @@
 import { db } from '@/lib/db';
 import { systemPrompts } from '@/lib/db/schema';
 import { NextResponse } from 'next/server';
-import { desc } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 export async function GET() {
   try {
@@ -39,4 +39,26 @@ export async function POST(req: Request) {
     console.error('Error creating system prompt:', error);
     return NextResponse.json({ error: 'Failed to create system prompt' }, { status: 500 });
   }
-} 
+}
+
+export async function PATCH(req: Request) {
+  try {
+    const body = await req.json();
+    const { id, action } = body;
+
+    if (action === 'set-default') {
+      // First, remove default from all prompts
+      await db.update(systemPrompts).set({ isDefault: false });
+      
+      // Then set the selected prompt as default
+      await db.update(systemPrompts).set({ isDefault: true }).where(eq(systemPrompts.id, id));
+      
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+  } catch (error) {
+    console.error('Error updating system prompt:', error);
+    return NextResponse.json({ error: 'Failed to update system prompt' }, { status: 500 });
+  }
+}
