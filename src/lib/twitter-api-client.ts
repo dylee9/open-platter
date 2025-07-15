@@ -38,17 +38,23 @@ function generateOAuthHeaders(
   method: string, 
   url: string, 
   accessToken: string, 
-  accessTokenSecret: string
+  accessTokenSecret: string,
+  body?: any
 ): Record<string, string> {
   const token = {
     key: accessToken,
     secret: accessTokenSecret,
   };
 
-  const authHeader = oauth.toHeader(oauth.authorize({
+  const requestData: OAuth.RequestOptions = {
     url: url,
     method: method,
-  }, token));
+  };
+
+  // IMPORTANT: For Twitter API v2, do NOT include the request body in the OAuth signature
+  // The body should only be included for v1.1 endpoints with form-encoded data
+  
+  const authHeader = oauth.toHeader(oauth.authorize(requestData, token));
 
   return {
     'Authorization': authHeader.Authorization,
@@ -77,7 +83,7 @@ export async function postTweet(
   }
 
   try {
-    const headers = generateOAuthHeaders('POST', url, accessToken, accessTokenSecret);
+    const headers = generateOAuthHeaders('POST', url, accessToken, accessTokenSecret, payload);
     
     const response = await fetch(url, {
       method: 'POST',
@@ -88,7 +94,19 @@ export async function postTweet(
     const result = await response.json() as TwitterApiResponse;
     
     if (!response.ok) {
-      console.error(`Failed to post tweet. Status: ${response.status}`, result);
+      console.error(`Failed to post tweet. Status: ${response.status}`);
+      console.error(`Response headers:`, Object.fromEntries(response.headers.entries()));
+      console.error(`Response body:`, JSON.stringify(result, null, 2));
+      
+      // Add specific error information for common 401 scenarios
+      if (response.status === 401) {
+        console.error('🔐 401 Unauthorized - Possible causes:');
+        console.error('1. Invalid or expired access tokens');
+        console.error('2. App permissions not set to "Read and Write"');
+        console.error('3. OAuth signature generation error');
+        console.error('4. Twitter API credentials mismatch');
+      }
+      
       return result;
     }
 
@@ -118,7 +136,8 @@ export async function uploadMedia(
     key: accessToken,
     secret: accessTokenSecret,
   };
-
+  
+  // For multipart/form-data, the body is not included in the signature.
   const authHeader = oauth.toHeader(oauth.authorize({ url, method: 'POST' }, token));
 
   const formData = new FormData();
@@ -129,6 +148,7 @@ export async function uploadMedia(
       method: 'POST',
       headers: {
         'Authorization': authHeader.Authorization,
+        // Content-Type is set automatically by the browser/fetch with FormData
       },
       body: formData,
     });

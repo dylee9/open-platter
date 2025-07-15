@@ -10,7 +10,7 @@
     "db:generate": "drizzle-kit generate:sqlite",
     "db:push": "drizzle-kit push:sqlite",
     "db:migrate": "drizzle-kit migrate:sqlite",
-    "cron:run": "ts-node scripts/scheduler-cron.ts"
+    "cron:run": "ts-node --project tsconfig.cron.json scripts/scheduler.ts"
   },
   "dependencies": {
     "@giphy/js-fetch-api": "^5.0.0",

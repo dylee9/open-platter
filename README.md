@@ -1,4 +1,4 @@
-# Open Platter
+git # Open Platter
 
 Open Platter is an open-source application that allows you to connect your Twitter account, schedule posts, and generate tweets from text transcriptions using Azure OpenAI. It's built with Next.js and uses a local SQLite database for storage.
 
