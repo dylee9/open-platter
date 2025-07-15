@@ -50,4 +50,37 @@ export async function POST(req: Request) {
     console.error('Error creating scheduled post:', error);
     return NextResponse.json({ error: 'Failed to create post' }, { status: 500 });
   }
+}
+
+export async function DELETE() {
+  try {
+    // Get all posts to delete their media files
+    const allPosts = await db.select().from(scheduledPosts);
+    
+    // Delete associated media files
+    for (const post of allPosts) {
+      if (post.mediaUrls) {
+        try {
+          const mediaFiles: string[] = JSON.parse(post.mediaUrls);
+          for (const mediaFile of mediaFiles) {
+            try {
+              await fs.unlink(path.join(process.cwd(), 'public', mediaFile));
+            } catch (e) {
+              console.error(`Failed to delete media file: ${mediaFile}`, e);
+            }
+          }
+        } catch (e) {
+          console.error('Error parsing media URLs:', e);
+        }
+      }
+    }
+
+    // Delete all posts from database
+    await db.delete(scheduledPosts);
+    
+    return NextResponse.json({ message: 'All scheduled posts deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting all scheduled posts:', error);
+    return NextResponse.json({ error: 'Failed to delete all posts' }, { status: 500 });
+  }
 } 

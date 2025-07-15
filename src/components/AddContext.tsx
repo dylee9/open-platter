@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Upload, Bot, Send, Loader2, Trash2, Edit, Save, X, FileText, FileImage, Settings } from 'lucide-react';
 
 interface SystemPrompt {
@@ -34,6 +34,9 @@ export default function AddContext({ onSchedulerRefresh }: AddContextProps) {
   const [editingText, setEditingText] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [originalPrompt, setOriginalPrompt] = useState('');
+
+  // Ref to preserve scroll position during updates
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   // Default system prompt from route.ts
   const DEFAULT_SYSTEM_PROMPT = `You are an expert tweet writer.
@@ -175,23 +178,73 @@ Do not include any other text or explanation in your response, only the JSON arr
     }
   };
 
-  const handleRemoveTweet = (index: number) => {
+  const handleRemoveTweet = useCallback((index: number) => {
     setGeneratedTweets((prev: string[]) => prev.filter((_: string, i: number) => i !== index));
-  };
+  }, []);
 
-  const handleEditTweet = (index: number) => {
+  const handleEditTweet = useCallback((index: number) => {
     setEditingIndex(index);
     setEditingText(generatedTweets[index]);
-  };
+  }, [generatedTweets]);
 
-  const handleSaveEdit = () => {
+  const handleCancelEdit = useCallback(() => {
+    // Save current scroll position
+    const scrollContainer = scrollContainerRef.current || document.documentElement;
+    const scrollTop = scrollContainer.scrollTop;
+    const scrollLeft = scrollContainer.scrollLeft;
+    
+    // Cancel the edit
+    setEditingIndex(null);
+    setEditingText('');
+    
+    // Restore scroll position after the next render
+    requestAnimationFrame(() => {
+      scrollContainer.scrollTop = scrollTop;
+      scrollContainer.scrollLeft = scrollLeft;
+    });
+  }, []);
+
+  const handleSaveEdit = useCallback(() => {
     if (editingIndex === null) return;
+    
+    // Save current scroll position
+    const scrollContainer = scrollContainerRef.current || document.documentElement;
+    const scrollTop = scrollContainer.scrollTop;
+    const scrollLeft = scrollContainer.scrollLeft;
+    
+    // Save focus information
+    const activeElement = document.activeElement;
+    const focusedElementId = activeElement?.id;
+    const focusedElementTag = activeElement?.tagName.toLowerCase();
+    
+    // Update the tweet
     const newTweets = [...generatedTweets];
     newTweets[editingIndex] = editingText;
     setGeneratedTweets(newTweets);
     setEditingIndex(null);
     setEditingText('');
-  };
+    
+    // Restore scroll position after the next render
+    requestAnimationFrame(() => {
+      // Restore scroll position
+      scrollContainer.scrollTop = scrollTop;
+      scrollContainer.scrollLeft = scrollLeft;
+      
+      // Try to restore focus if it was on a specific element
+      if (focusedElementId) {
+        const elementToFocus = document.getElementById(focusedElementId);
+        if (elementToFocus) {
+          elementToFocus.focus();
+        }
+      } else if (focusedElementTag === 'button') {
+        // If focus was on a button, try to find the edit button for the same index
+        const editButton = document.querySelector(`button[data-edit-index="${editingIndex}"]`) as HTMLButtonElement;
+        if (editButton) {
+          editButton.focus();
+        }
+      }
+    });
+  }, [editingIndex, editingText, generatedTweets]);
 
   const handleScheduleAll = async () => {
     if (generatedTweets.length === 0) {
@@ -381,11 +434,11 @@ Do not include any other text or explanation in your response, only the JSON arr
 
         {/* Generated Tweets */}
         {generatedTweets.length > 0 && (
-          <div className="mt-6">
+          <div className="mt-6" ref={scrollContainerRef}>
             <h4 className="text-md font-medium text-gray-900 mb-2">Generated Tweets</h4>
             <div className="space-y-3">
               {generatedTweets.map((tweet, index) => (
-                <div key={index} className="p-3 bg-gray-50 rounded-lg border flex flex-col sm:flex-row gap-2 justify-between">
+                <div key={`tweet-${index}`} className="p-3 bg-gray-50 rounded-lg border flex flex-col sm:flex-row gap-2 justify-between">
                   {editingIndex === index ? (
                     <div className="flex-1">
                       <textarea
@@ -398,7 +451,7 @@ Do not include any other text or explanation in your response, only the JSON arr
                         <button onClick={handleSaveEdit} className="flex items-center space-x-1 px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 text-sm">
                           <Save size={14} /> <span>Save</span>
                         </button>
-                        <button onClick={() => setEditingIndex(null)} className="flex items-center space-x-1 px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm">
+                        <button onClick={handleCancelEdit} className="flex items-center space-x-1 px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm">
                           <X size={14} /> <span>Cancel</span>
                         </button>
                       </div>
@@ -407,7 +460,11 @@ Do not include any other text or explanation in your response, only the JSON arr
                     <p className="text-gray-800 flex-1">{tweet}</p>
                   )}
                   <div className="flex gap-2 items-start">
-                    <button onClick={() => handleEditTweet(index)} className="p-2 text-gray-400 hover:text-blue-600">
+                    <button 
+                      onClick={() => handleEditTweet(index)} 
+                      className="p-2 text-gray-400 hover:text-blue-600"
+                      data-edit-index={index}
+                    >
                       <Edit size={16} />
                     </button>
                     <button onClick={() => handleRemoveTweet(index)} className="p-2 text-gray-400 hover:text-red-600">

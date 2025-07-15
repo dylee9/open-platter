@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Calendar, Clock, Plus, Edit, Trash2, Send, Smile, ImageIcon, X, Save, Tag, Clock3, CheckCircle, XCircle, RefreshCw, Loader2, Sparkles } from 'lucide-react';
 import { MdOutlineGifBox } from "react-icons/md";
 import EmojiPicker, { EmojiClickData, EmojiStyle, Theme } from 'emoji-picker-react';
@@ -142,6 +142,23 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
   const [newCommunityName, setNewCommunityName] = useState('');
   const [isSavingTag, setIsSavingTag] = useState(false);
   
+  // Ref to preserve scroll position during updates
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  
+  // Helper function to preserve scroll position during updates
+  const preserveScrollPosition = useCallback((callback: () => void) => {
+    const scrollContainer = scrollContainerRef.current || document.documentElement;
+    const scrollTop = scrollContainer.scrollTop;
+    const scrollLeft = scrollContainer.scrollLeft;
+    
+    callback();
+    
+    requestAnimationFrame(() => {
+      scrollContainer.scrollTop = scrollTop;
+      scrollContainer.scrollLeft = scrollLeft;
+    });
+  }, []);
+  
   // Create preview URLs when images are attached
   useEffect(() => {
     const urls = attachedImages.map(file => URL.createObjectURL(file));
@@ -252,7 +269,7 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
     resetForm();
   };
 
-  const handleEditPost = (post: ScheduledPost) => {
+  const handleEditPost = useCallback((post: ScheduledPost) => {
     setEditingPost(post);
     setPostText(post.text);
     const postDate = new Date(post.scheduledTime);
@@ -265,7 +282,7 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
     
     setShowCreateForm(true);
     resetAttachments();
-  };
+  }, [communityTags]);
 
   const resetForm = () => {
     setPostText('');
@@ -298,7 +315,7 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
     return true;
   };
 
-  const handleSubmitPost = async () => {
+  const handleSubmitPost = useCallback(async () => {
     if (!postText.trim() || !selectedDate || !selectedTime) return;
     
     // Check if scheduled time is in the past
@@ -306,6 +323,11 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
       setDateTimeError('Cannot schedule posts in the past. Please select a future date and time.');
       return;
     }
+    
+    // Save current scroll position before making changes
+    const scrollContainer = scrollContainerRef.current || document.documentElement;
+    const scrollTop = scrollContainer.scrollTop;
+    const scrollLeft = scrollContainer.scrollLeft;
     
     setIsSubmitting(true);
     
@@ -356,7 +378,16 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
         await fetchScheduledPosts();
         setShowCreateForm(false);
         resetForm();
-        onUpdate?.();
+        // Only call onUpdate for new posts, not edits, to prevent unnecessary parent refreshes
+        if (!editingPost) {
+          onUpdate?.();
+        }
+        
+        // Restore scroll position after all state updates
+        requestAnimationFrame(() => {
+          scrollContainer.scrollTop = scrollTop;
+          scrollContainer.scrollLeft = scrollLeft;
+        });
       } else {
         throw new Error('Failed to save post');
       }
@@ -366,9 +397,14 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [postText, selectedDate, selectedTime, editingPost, communityTags, selectedCommunityTag, attachedImages, attachedGifs, onUpdate]);
 
-  const handleDeletePost = async (postId: string) => {
+  const handleDeletePost = useCallback(async (postId: string) => {
+    // Save current scroll position before making changes
+    const scrollContainer = scrollContainerRef.current || document.documentElement;
+    const scrollTop = scrollContainer.scrollTop;
+    const scrollLeft = scrollContainer.scrollLeft;
+    
     try {
       const response = await fetch(`/api/scheduler/posts/${postId}`, {
         method: 'DELETE',
@@ -377,6 +413,12 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
       if (response.ok) {
         await fetchScheduledPosts();
         // Removed onUpdate?.() call to prevent page scroll to top
+        
+        // Restore scroll position after state updates
+        requestAnimationFrame(() => {
+          scrollContainer.scrollTop = scrollTop;
+          scrollContainer.scrollLeft = scrollLeft;
+        });
       } else {
         throw new Error('Failed to delete post');
       }
@@ -384,7 +426,45 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
       debugLog.error('Error deleting post:', error);
       alert('Failed to delete post. Please try again.');
     }
-  };
+  }, []);
+
+  const handleClearAllPosts = useCallback(async () => {
+    if (scheduledPosts.length === 0) return;
+    
+    // Show confirmation dialog
+    const confirmed = window.confirm(
+      `Are you sure you want to delete all ${scheduledPosts.length} scheduled posts? This action cannot be undone.`
+    );
+    
+    if (!confirmed) return;
+
+    // Save current scroll position before making changes
+    const scrollContainer = scrollContainerRef.current || document.documentElement;
+    const scrollTop = scrollContainer.scrollTop;
+    const scrollLeft = scrollContainer.scrollLeft;
+    
+    try {
+      const response = await fetch('/api/scheduler/posts', {
+        method: 'DELETE',
+      });
+
+      if (response.ok) {
+        await fetchScheduledPosts();
+        // Removed onUpdate?.() call to prevent page scroll to top
+        
+        // Restore scroll position after state updates
+        requestAnimationFrame(() => {
+          scrollContainer.scrollTop = scrollTop;
+          scrollContainer.scrollLeft = scrollLeft;
+        });
+      } else {
+        throw new Error('Failed to delete all posts');
+      }
+    } catch (error) {
+      debugLog.error('Error deleting all posts:', error);
+      alert('Failed to delete all posts. Please try again.');
+    }
+  }, [scheduledPosts.length]);
 
   const handleSaveTag = async () => {
     if (!newTagName.trim() || !newCommunityId.trim()) return;
@@ -526,7 +606,7 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" ref={scrollContainerRef}>
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div></div>
@@ -791,8 +871,10 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
               </h3>
               <button
                 onClick={() => {
-                  setShowCreateForm(false);
-                  resetForm();
+                  preserveScrollPosition(() => {
+                    setShowCreateForm(false);
+                    resetForm();
+                  });
                 }}
                 className="text-gray-400 hover:text-gray-600"
               >
@@ -1043,8 +1125,10 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
               <div className="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-3 pt-4 border-t border-gray-200">
                 <button
                   onClick={() => {
-                    setShowCreateForm(false);
-                    resetForm();
+                    preserveScrollPosition(() => {
+                      setShowCreateForm(false);
+                      resetForm();
+                    });
                   }}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors order-2 sm:order-1"
                 >
@@ -1162,8 +1246,17 @@ export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) 
 
       {/* Posts History */}
       <div className="bg-white rounded-lg border border-gray-200">
-        <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <h3 className="text-lg font-medium text-gray-900">Scheduled Posts History</h3>
+          {scheduledPosts.length > 0 && (
+            <button
+              onClick={handleClearAllPosts}
+              className="flex items-center space-x-2 px-3 py-1.5 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-300 hover:border-red-400 rounded-md transition-colors"
+            >
+              <Trash2 size={14} />
+              <span>Clear All</span>
+            </button>
+          )}
         </div>
         <div className="p-4 sm:p-6">
           {scheduledPosts.length === 0 ? (
