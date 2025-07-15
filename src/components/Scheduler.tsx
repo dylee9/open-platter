@@ -36,6 +36,7 @@ interface CommunityTag {
 
 interface SchedulerProps {
   onUpdate?: () => void;
+  refreshTrigger?: number;
 }
 
 // Helper function to get the start of the week (Monday)
@@ -110,7 +111,7 @@ const formatTimeForDisplay = (dateString: string) => {
   });
 };
 
-export default function Scheduler({ onUpdate }: SchedulerProps) {
+export default function Scheduler({ onUpdate, refreshTrigger }: SchedulerProps) {
   const [scheduledPosts, setScheduledPosts] = useState<ScheduledPost[]>([]);
   const [communityTags, setCommunityTags] = useState<CommunityTag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,6 +156,12 @@ export default function Scheduler({ onUpdate }: SchedulerProps) {
   useEffect(() => {
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (refreshTrigger) {
+      fetchScheduledPosts();
+    }
+  }, [refreshTrigger]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -210,10 +217,15 @@ export default function Scheduler({ onUpdate }: SchedulerProps) {
   // Get posts for a specific date
   const getPostsForDate = (date: Date) => {
     const dateString = date.toDateString();
-    return scheduledPosts.filter(post => {
+    const postsForDate = scheduledPosts.filter(post => {
       const postDate = new Date(post.scheduledTime);
       return postDate.toDateString() === dateString;
     });
+    
+    // Sort by time (earliest to latest) and limit to 17 posts
+    return postsForDate
+      .sort((a, b) => new Date(a.scheduledTime).getTime() - new Date(b.scheduledTime).getTime())
+      .slice(0, 17);
   };
 
   const handlePreviousWeek = () => {
@@ -357,8 +369,6 @@ export default function Scheduler({ onUpdate }: SchedulerProps) {
   };
 
   const handleDeletePost = async (postId: string) => {
-    if (!confirm('Are you sure you want to delete this scheduled post?')) return;
-    
     try {
       const response = await fetch(`/api/scheduler/posts/${postId}`, {
         method: 'DELETE',
@@ -366,7 +376,7 @@ export default function Scheduler({ onUpdate }: SchedulerProps) {
 
       if (response.ok) {
         await fetchScheduledPosts();
-        onUpdate?.();
+        // Removed onUpdate?.() call to prevent page scroll to top
       } else {
         throw new Error('Failed to delete post');
       }
@@ -624,16 +634,17 @@ export default function Scheduler({ onUpdate }: SchedulerProps) {
                               >
                                 <Edit size={14} />
                               </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeletePost(post.id);
-                                }}
-                                className="p-1 text-gray-400 hover:text-red-600 transition-colors"
-                                title="Delete"
-                              >
-                                <Trash2 size={14} />
-                              </button>
+                                                          <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleDeletePost(post.id);
+                              }}
+                              className="p-1 text-gray-400 hover:text-red-600 transition-colors"
+                              title="Delete"
+                            >
+                              <Trash2 size={14} />
+                            </button>
                             </div>
                           </div>
                           
@@ -642,9 +653,16 @@ export default function Scheduler({ onUpdate }: SchedulerProps) {
                           </div>
                           
                           <div className="flex items-center justify-between">
-                            <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs ${getStatusColor(post.status)}`}>
-                              {getStatusIcon(post.status)}
-                              <span className="capitalize">{post.status}</span>
+                            <div className="flex items-center space-x-2">
+                              <div className={`inline-flex items-center space-x-1 px-2 py-1 rounded-full text-xs ${getStatusColor(post.status)}`}>
+                                {getStatusIcon(post.status)}
+                                <span className="capitalize">{post.status}</span>
+                              </div>
+                              {post.communityId && (
+                                <div className="text-xs text-blue-600 bg-blue-50 px-2 py-1 rounded-full">
+                                  {communityTags.find(tag => tag.communityId === post.communityId)?.tagName || 'Community'}
+                                </div>
+                              )}
                             </div>
                             {post.media_ids && post.media_ids.length > 0 && (
                               <div className="text-gray-400 text-xs">
@@ -719,6 +737,7 @@ export default function Scheduler({ onUpdate }: SchedulerProps) {
                             </button>
                             <button
                               onClick={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
                                 handleDeletePost(post.id);
                               }}
@@ -734,14 +753,21 @@ export default function Scheduler({ onUpdate }: SchedulerProps) {
                           {post.text.length > 50 ? `${post.text.slice(0, 50)}...` : post.text}
                         </div>
                         
-                        <div className="flex items-center justify-between">
-                          <div className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs ${getStatusColor(post.status)}`}>
-                            {getStatusIcon(post.status)}
-                            <span className="capitalize">{post.status}</span>
+                        <div className="flex flex-col space-y-1">
+                          <div className="flex items-center justify-between">
+                            <div className={`inline-flex items-center space-x-1 px-2 py-0.5 rounded-full text-xs ${getStatusColor(post.status)}`}>
+                              {getStatusIcon(post.status)}
+                              <span className="capitalize">{post.status}</span>
+                            </div>
+                            {post.media_ids && post.media_ids.length > 0 && (
+                              <div className="text-gray-400">
+                                📎 {post.media_ids.length}
+                              </div>
+                            )}
                           </div>
-                          {post.media_ids && post.media_ids.length > 0 && (
-                            <div className="text-gray-400">
-                              📎 {post.media_ids.length}
+                          {post.communityId && (
+                            <div className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full self-start">
+                              {communityTags.find(tag => tag.communityId === post.communityId)?.tagName || 'Community'}
                             </div>
                           )}
                         </div>
@@ -1198,7 +1224,10 @@ export default function Scheduler({ onUpdate }: SchedulerProps) {
                               <Edit size={16} />
                             </button>
                             <button
-                              onClick={() => handleDeletePost(post.id)}
+                              onClick={(e) => {
+                                e.preventDefault();
+                                handleDeletePost(post.id);
+                              }}
                               className="p-2 text-gray-400 hover:text-red-600 transition-colors"
                               title="Delete"
                             >

@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import TwitterConnector from './TwitterConnector';
 import Scheduler from './Scheduler';
 import { Loader2 } from 'lucide-react';
-import TweetGenerator from './TweetGenerator';
+import AddContext from './AddContext';
 
 interface TwitterUser {
   id: number;
@@ -15,6 +15,7 @@ interface TwitterUser {
 export default function MainDashboard() {
   const [user, setUser] = useState<TwitterUser | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [schedulerRefresh, setSchedulerRefresh] = useState(0);
 
   const fetchUser = async () => {
     setIsLoading(true);
@@ -42,6 +43,10 @@ export default function MainDashboard() {
     fetchUser();
   };
 
+  const handleSchedulerRefresh = () => {
+    setSchedulerRefresh(prev => prev + 1);
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center p-12">
@@ -54,9 +59,9 @@ export default function MainDashboard() {
     <div className="w-full max-w-5xl">
       <TwitterConnector />
       {user && user.twitterUsername ? (
-        <div className="mt-8">
-          <TweetGenerator />
-          <Scheduler onUpdate={handleProfileUpdate} />
+        <div className="mt-8 space-y-6">
+          <AddContext onSchedulerRefresh={handleSchedulerRefresh} />
+          <Scheduler onUpdate={handleProfileUpdate} refreshTrigger={schedulerRefresh} />
         </div>
       ) : (
         <div className="mt-8 text-center p-8 bg-gray-50 rounded-lg border">

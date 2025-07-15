@@ -30,4 +30,13 @@ export const communityTags = sqliteTable('community_tags', {
   communityName: text('community_name'),
   createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
   updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const systemPrompts = sqliteTable('system_prompts', {
+  id: integer('id').primaryKey(),
+  name: text('name').notNull(),
+  prompt: text('prompt').notNull(),
+  isDefault: integer('is_default', { mode: 'boolean' }).default(false),
+  createdAt: integer('created_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).default(sql`CURRENT_TIMESTAMP`),
 }); 

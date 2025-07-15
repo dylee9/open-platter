@@ -11,14 +11,14 @@ if (!endpoint || !deployment || !apiKey || !apiVersion) {
 
 const client = new AzureOpenAI({ endpoint, apiKey, deployment, apiVersion });
 
-export async function generateTweetsFromTranscription(transcription: string, systemPrompt: string): Promise<string[]> {
+export async function generateTweetsFromContext(context: string, systemPrompt: string, contextType: string = 'transcription'): Promise<string[]> {
   try {
     const response = await client.chat.completions.create({
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `Here is the transcription:\n\n${transcription}` }
+        { role: "user", content: `Here is the ${contextType}:\n\n${context}` }
       ],
-      max_tokens: 2000,
+      max_tokens: 10000,
       temperature: 0.7,
       top_p: 1,
       model: deployment, // In Azure, model is part of deployment
