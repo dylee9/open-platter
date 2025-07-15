@@ -1,4 +1,4 @@
-git # Open Platter
+# Open Platter
 
 Open Platter is an open-source application that allows you to connect your Twitter account, schedule posts, and generate tweets from text transcriptions using Azure OpenAI. It's built with Next.js and uses a local SQLite database for storage.
 
@@ -21,6 +21,7 @@ Follow these instructions to get the project up and running on your local machin
 *   [npm](https://www.npmjs.com/)
 *   A [Twitter Developer Account](https://developer.twitter.com/en/apply-for-access)
 *   An [Azure Account](https://azure.microsoft.com/en-us/free/) with access to Azure OpenAI services.
+*   A [Giphy Developer Account](https://developers.giphy.com/) (optional, for GIF picker functionality)
 
 ### 2. Obtain Twitter Developer Keys
 
@@ -31,7 +32,7 @@ Follow these instructions to get the project up and running on your local machin
     *   Under **User authentication settings**, set up OAuth 1.0a.
     *   Set the **App permissions** to "Read and write".
     *   In the **Callback URI / Redirect URL** field, add the following URL: `http://localhost:3000/api/twitter/auth/callback`
-4.  **Get Keys and Tokens**: Navigate to the "Keys and Tokens" tab for your App. Generate and copy your **API Key** and **API Key Secret**. These will be your `TWITTER_CONSUMER_KEY` and `TWITTER_CONSUMER_SECRET`.
+4.  **Get Keys and Tokens**: Navigate to the "Keys and Tokens" tab for your App. Generate and copy your **API Key** and **API Key Secret**. These will be your `TWITTER_API_KEY` and `TWITTER_API_SECRET`.
 
 ### 3. Obtain Azure OpenAI Keys
 
@@ -39,7 +40,13 @@ Follow these instructions to get the project up and running on your local machin
 2.  **Deploy a Model**: Once the resource is created, go to the Azure OpenAI Studio and deploy a new model (e.g., `gpt-35-turbo` or `gpt-4`). Take note of the **deployment name**.
 3.  **Get Keys and Endpoint**: In your Azure OpenAI resource page, navigate to the "Keys and Endpoint" section. Copy the **API Key** and the **Endpoint URL**.
 
-### 4. Installation and Setup
+### 4. Obtain Giphy API Key (Optional)
+
+1.  **Create a Giphy Developer Account**: Go to the [Giphy Developers Portal](https://developers.giphy.com/) and create an account.
+2.  **Create an App**: Create a new app to get your API key.
+3.  **Copy API Key**: Copy the API key for use in the environment variables.
+
+### 5. Installation and Setup
 
 1.  **Clone the repository**:
     ```bash
@@ -55,14 +62,18 @@ Follow these instructions to get the project up and running on your local machin
 3.  **Create a local environment file**:
     Create a file named `.env.local` in the root of the project and add your keys:
     ```env
-    # Twitter API Keys
-    TWITTER_CONSUMER_KEY=your_twitter_api_key
-    TWITTER_CONSUMER_SECRET=your_twitter_api_key_secret
+    # Twitter API Keys (Required)
+    TWITTER_API_KEY=your_twitter_api_key
+    TWITTER_API_SECRET=your_twitter_api_secret
 
-    # Azure OpenAI Keys
+    # Azure OpenAI Keys (Required)
     AZURE_OPENAI_API_KEY=your_azure_openai_api_key
     AZURE_OPENAI_ENDPOINT=your_azure_openai_endpoint
-    AZURE_OPENAI_DEPLOYMENT_NAME=your_azure_openai_deployment_name
+    AZURE_OPENAI_DEPLOYMENT=your_azure_openai_deployment_name
+    AZURE_OPENAI_API_VERSION=2025-01-01-preview
+
+    # Giphy API Key (Optional - for GIF picker in scheduler)
+    NEXT_PUBLIC_GIPHY_API_KEY=your_giphy_api_key
     ```
 
 4.  **Set up the database**:
@@ -71,7 +82,7 @@ Follow these instructions to get the project up and running on your local machin
     npm run db:push
     ```
 
-### 5. Running the Application
+### 6. Running the Application
 
 1.  **Start the development server**:
     ```bash
@@ -85,3 +96,28 @@ Follow these instructions to get the project up and running on your local machin
     npm run cron:run
     ```
     This script will check for due posts every minute and send them to Twitter.
+
+## Environment Variables
+
+### Required Variables
+
+| Variable | Description | Where to obtain |
+|----------|-------------|----------------|
+| `TWITTER_API_KEY` | Twitter API consumer key | Twitter Developer Portal → Your App → Keys and Tokens |
+| `TWITTER_API_SECRET` | Twitter API consumer secret | Twitter Developer Portal → Your App → Keys and Tokens |
+| `AZURE_OPENAI_API_KEY` | Azure OpenAI API key | Azure Portal → Your OpenAI Resource → Keys and Endpoint |
+| `AZURE_OPENAI_ENDPOINT` | Azure OpenAI endpoint URL | Azure Portal → Your OpenAI Resource → Keys and Endpoint |
+| `AZURE_OPENAI_DEPLOYMENT` | Azure OpenAI model deployment name | Azure OpenAI Studio → Your deployed model name |
+| `AZURE_OPENAI_API_VERSION` | Azure OpenAI API version | Use `2025-01-01-preview` or latest available |
+
+### Optional Variables
+
+| Variable | Description | Where to obtain | Default/Fallback |
+|----------|-------------|----------------|------------------|
+| `NEXT_PUBLIC_GIPHY_API_KEY` | Giphy API key for GIF picker | Giphy Developers Portal → Your App | Has fallback key |
+
+### Unused Variables
+
+The following variables are present in some configurations but are not currently used by the application:
+
+- `TWITTER_BEARER_TOKEN` - Twitter Bearer Token (not used in current implementation)
